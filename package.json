@@ -10,20 +10,15 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": [
-    "bingo",
-    "game",
-    "websocket",
-    "telegram"
-  ],
+  "keywords": ["bingo", "game", "websocket", "telegram"],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "dotenv": "^17.2.3",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "pg": "^8.16.3",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1",
     "ws": "^8.18.3"
   }
 }

@@ -1,22 +1,32 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const jwt = require('jsonwebtoken');
+
+const db = require('./db/database');
+const User = require('./models/User');
+const Wallet = require('./models/Wallet');
+const Game = require('./models/Game');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+const JWT_SECRET = process.env.JWT_SECRET || 'chewatabingo-secret-key-change-in-production';
 const SELECTION_TIME = 45;
 const WINNER_DISPLAY_TIME = 5;
 
+let currentGameId = null;
 let gameState = {
     phase: 'selection',
     timeLeft: SELECTION_TIME,
     calledNumbers: [],
     masterNumbers: [],
     winner: null,
-    players: new Map()
+    players: new Map(),
+    stakeAmount: 10
 };
 
 let playerIdCounter = 0;
@@ -76,7 +86,7 @@ function getConfirmedPlayersCount() {
     return count;
 }
 
-function startSelectionPhase() {
+async function startSelectionPhase() {
     gameState.phase = 'selection';
     gameState.timeLeft = SELECTION_TIME;
     gameState.winner = null;
@@ -87,10 +97,19 @@ function startSelectionPhase() {
         player.isCardConfirmed = false;
     });
     
+    try {
+        const game = await Game.create(gameState.stakeAmount);
+        currentGameId = game.id;
+        console.log(`New game created: #${currentGameId}`);
+    } catch (err) {
+        console.error('Error creating game:', err);
+    }
+    
     broadcast({
         type: 'phase_change',
         phase: 'selection',
-        timeLeft: gameState.timeLeft
+        timeLeft: gameState.timeLeft,
+        gameId: currentGameId
     });
 }
 
@@ -107,11 +126,29 @@ function startGamePhase() {
     });
 }
 
-function startWinnerDisplay(winnerInfo) {
+async function startWinnerDisplay(winnerInfo) {
     stopNumberCalling();
     gameState.phase = 'winner';
     gameState.timeLeft = WINNER_DISPLAY_TIME;
     gameState.winner = winnerInfo;
+    
+    try {
+        if (currentGameId && winnerInfo.userId) {
+            const game = await Game.setWinner(
+                currentGameId, 
+                winnerInfo.userId, 
+                winnerInfo.cardId,
+                gameState.calledNumbers
+            );
+            
+            if (game && game.total_pot > 0) {
+                await Wallet.win(winnerInfo.userId, game.total_pot, currentGameId);
+                winnerInfo.prize = game.total_pot;
+            }
+        }
+    } catch (err) {
+        console.error('Error recording winner:', err);
+    }
     
     broadcast({
         type: 'phase_change',
@@ -126,7 +163,7 @@ function getPlayersInfo() {
     gameState.players.forEach((player, id) => {
         if (player.isCardConfirmed) {
             players.push({
-                odId: id,
+                id: id,
                 username: player.username,
                 cardId: player.selectedCardId
             });
@@ -172,7 +209,7 @@ function stopNumberCalling() {
     }
 }
 
-function gameLoop() {
+async function gameLoop() {
     if (gameState.phase === 'game') {
         return;
     }
@@ -193,10 +230,10 @@ function gameLoop() {
                 startGamePhase();
                 startNumberCalling();
             } else {
-                startSelectionPhase();
+                await startSelectionPhase();
             }
         } else if (gameState.phase === 'winner') {
-            startSelectionPhase();
+            await startSelectionPhase();
         }
     }
 }
@@ -205,9 +242,11 @@ wss.on('connection', (ws) => {
     const playerId = ++playerIdCounter;
     const player = {
         id: playerId,
+        userId: null,
         username: 'Guest_' + playerId,
         selectedCardId: null,
-        isCardConfirmed: false
+        isCardConfirmed: false,
+        balance: 0
     };
     gameState.players.set(playerId, player);
     
@@ -219,14 +258,127 @@ wss.on('connection', (ws) => {
         phase: gameState.phase,
         timeLeft: gameState.timeLeft,
         calledNumbers: gameState.calledNumbers,
-        winner: gameState.winner
+        winner: gameState.winner,
+        gameId: currentGameId
     }));
     
-    ws.on('message', (message) => {
+    ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
+            const player = gameState.players.get(playerId);
             
             switch (data.type) {
+                case 'auth_telegram':
+                    try {
+                        const user = await User.findOrCreateByTelegram(
+                            data.telegramId,
+                            data.username
+                        );
+                        player.userId = user.id;
+                        player.username = user.username;
+                        player.balance = parseFloat(user.balance || 0);
+                        
+                        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+                        
+                        ws.send(JSON.stringify({
+                            type: 'auth_success',
+                            token: token,
+                            user: {
+                                id: user.id,
+                                username: user.username,
+                                balance: player.balance
+                            }
+                        }));
+                    } catch (err) {
+                        console.error('Auth error:', err);
+                        ws.send(JSON.stringify({ type: 'auth_error', error: 'Authentication failed' }));
+                    }
+                    break;
+
+                case 'auth_token':
+                    try {
+                        const decoded = jwt.verify(data.token, JWT_SECRET);
+                        const user = await User.findById(decoded.userId);
+                        
+                        if (user) {
+                            player.userId = user.id;
+                            player.username = user.username;
+                            player.balance = parseFloat(user.balance || 0);
+                            
+                            ws.send(JSON.stringify({
+                                type: 'auth_success',
+                                user: {
+                                    id: user.id,
+                                    username: user.username,
+                                    balance: player.balance
+                                }
+                            }));
+                        }
+                    } catch (err) {
+                        ws.send(JSON.stringify({ type: 'auth_error', error: 'Invalid token' }));
+                    }
+                    break;
+
+                case 'register':
+                    try {
+                        const existingUser = await User.findByUsername(data.username);
+                        if (existingUser) {
+                            ws.send(JSON.stringify({ type: 'register_error', error: 'Username taken' }));
+                            break;
+                        }
+                        
+                        const newUser = await User.create(data.username, data.password);
+                        player.userId = newUser.id;
+                        player.username = newUser.username;
+                        player.balance = 0;
+                        
+                        const token = jwt.sign({ userId: newUser.id }, JWT_SECRET, { expiresIn: '7d' });
+                        
+                        ws.send(JSON.stringify({
+                            type: 'register_success',
+                            token: token,
+                            user: {
+                                id: newUser.id,
+                                username: newUser.username,
+                                balance: 0
+                            }
+                        }));
+                    } catch (err) {
+                        console.error('Register error:', err);
+                        ws.send(JSON.stringify({ type: 'register_error', error: 'Registration failed' }));
+                    }
+                    break;
+
+                case 'login':
+                    try {
+                        const user = await User.findByUsername(data.username);
+                        if (!user || !(await User.verifyPassword(user, data.password))) {
+                            ws.send(JSON.stringify({ type: 'login_error', error: 'Invalid credentials' }));
+                            break;
+                        }
+                        
+                        player.userId = user.id;
+                        player.username = user.username;
+                        player.balance = parseFloat(user.balance || 0);
+                        await User.updateLastLogin(user.id);
+                        
+                        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+                        
+                        ws.send(JSON.stringify({
+                            type: 'login_success',
+                            token: token,
+                            user: {
+                                id: user.id,
+                                username: user.username,
+                                balance: player.balance
+                            }
+                        }));
+                    } catch (err) {
+                        console.error('Login error:', err);
+                        ws.send(JSON.stringify({ type: 'login_error', error: 'Login failed' }));
+                    }
+                    break;
+                    
                 case 'set_username':
                     if (gameState.players.has(playerId)) {
                         gameState.players.get(playerId).username = data.username;
@@ -240,26 +392,123 @@ wss.on('connection', (ws) => {
                     break;
                     
                 case 'confirm_card':
-                    if (gameState.phase === 'selection' && gameState.players.has(playerId)) {
-                        const p = gameState.players.get(playerId);
-                        if (p.selectedCardId) {
-                            p.isCardConfirmed = true;
+                    if (gameState.phase === 'selection' && player) {
+                        if (!player.userId) {
+                            ws.send(JSON.stringify({ 
+                                type: 'error', 
+                                error: 'Please login first' 
+                            }));
+                            break;
+                        }
+                        
+                        if (player.selectedCardId) {
+                            const stakeResult = await Wallet.stake(
+                                player.userId, 
+                                gameState.stakeAmount, 
+                                currentGameId
+                            );
+                            
+                            if (!stakeResult.success) {
+                                ws.send(JSON.stringify({ 
+                                    type: 'error', 
+                                    error: stakeResult.error || 'Insufficient balance' 
+                                }));
+                                break;
+                            }
+                            
+                            player.balance = stakeResult.balance;
+                            player.isCardConfirmed = true;
+                            
+                            try {
+                                await Game.addParticipant(
+                                    currentGameId,
+                                    player.userId,
+                                    player.selectedCardId,
+                                    gameState.stakeAmount
+                                );
+                            } catch (err) {
+                                console.error('Error adding participant:', err);
+                            }
+                            
                             ws.send(JSON.stringify({
                                 type: 'card_confirmed',
-                                cardId: p.selectedCardId
+                                cardId: player.selectedCardId,
+                                balance: player.balance
                             }));
                         }
                     }
                     break;
                     
                 case 'claim_bingo':
-                    if (gameState.phase === 'game' && gameState.players.has(playerId)) {
-                        const p = gameState.players.get(playerId);
-                        if (p.isCardConfirmed && data.isValid) {
+                    if (gameState.phase === 'game' && player) {
+                        if (player.isCardConfirmed && data.isValid) {
                             startWinnerDisplay({
-                                username: p.username,
-                                cardId: p.selectedCardId
+                                userId: player.userId,
+                                username: player.username,
+                                cardId: player.selectedCardId
                             });
+                        }
+                    }
+                    break;
+
+                case 'get_balance':
+                    if (player.userId) {
+                        try {
+                            const balance = await Wallet.getBalance(player.userId);
+                            player.balance = parseFloat(balance);
+                            ws.send(JSON.stringify({
+                                type: 'balance_update',
+                                balance: player.balance
+                            }));
+                        } catch (err) {
+                            console.error('Balance error:', err);
+                        }
+                    }
+                    break;
+
+                case 'get_transactions':
+                    if (player.userId) {
+                        try {
+                            const transactions = await Wallet.getTransactionHistory(player.userId);
+                            ws.send(JSON.stringify({
+                                type: 'transactions',
+                                transactions: transactions
+                            }));
+                        } catch (err) {
+                            console.error('Transactions error:', err);
+                        }
+                    }
+                    break;
+
+                case 'get_game_history':
+                    if (player.userId) {
+                        try {
+                            const history = await Game.getUserGameHistory(player.userId);
+                            const stats = await Game.getUserStats(player.userId);
+                            ws.send(JSON.stringify({
+                                type: 'game_history',
+                                history: history,
+                                stats: stats
+                            }));
+                        } catch (err) {
+                            console.error('Game history error:', err);
+                        }
+                    }
+                    break;
+
+                case 'deposit':
+                    if (player.userId && data.amount > 0) {
+                        try {
+                            const result = await Wallet.deposit(player.userId, data.amount);
+                            if (result.success) {
+                                player.balance = result.balance;
+                                ws.send(JSON.stringify({
+                                    type: 'deposit_success',
+                                    balance: result.balance
+                                }));
+                            }
+                        } catch (err) {
+                            ws.send(JSON.stringify({ type: 'deposit_error', error: 'Deposit failed' }));
                         }
                     }
                     break;
@@ -274,6 +523,7 @@ wss.on('connection', (ws) => {
     });
 });
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use((req, res, next) => {
@@ -281,12 +531,75 @@ app.use((req, res, next) => {
     next();
 });
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log('WebSocket server ready');
-    
-    initializeMasterNumbers();
-    startSelectionPhase();
-    setInterval(gameLoop, 1000);
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        
+        const existingUser = await User.findByUsername(username);
+        if (existingUser) {
+            return res.status(400).json({ error: 'Username already taken' });
+        }
+        
+        const user = await User.create(username, password);
+        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+        
+        res.json({ 
+            token, 
+            user: { id: user.id, username: user.username, balance: 0 } 
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Registration failed' });
+    }
 });
+
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        
+        const user = await User.findByUsername(username);
+        if (!user || !(await User.verifyPassword(user, password))) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+        
+        await User.updateLastLogin(user.id);
+        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+        
+        res.json({ 
+            token, 
+            user: { id: user.id, username: user.username, balance: user.balance } 
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Login failed' });
+    }
+});
+
+const PORT = process.env.PORT || 10000;
+
+async function startServer() {
+    try {
+        await db.initializeDatabase();
+        console.log('Database initialized');
+        
+        server.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server running on port ${PORT}`);
+            console.log('WebSocket server ready');
+            
+            initializeMasterNumbers();
+            startSelectionPhase();
+            setInterval(gameLoop, 1000);
+        });
+    } catch (err) {
+        console.error('Failed to start server:', err);
+        
+        server.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server running on port ${PORT} (without database)`);
+            console.log('WebSocket server ready');
+            
+            initializeMasterNumbers();
+            startSelectionPhase();
+            setInterval(gameLoop, 1000);
+        });
+    }
+}
+
+startServer();

@@ -32,7 +32,7 @@ class Game {
              VALUES ($1, $2, $3, $4)
              ON CONFLICT (game_id, user_id) DO UPDATE SET card_id = $3
              RETURNING *`,
-            [gameId, oduserId, cardId, stakeAmount]
+            [gameId, userId, cardId, stakeAmount]
         );
         
         await db.query(
