@@ -677,3 +677,150 @@ html, body {
     color: #27ae60;
     font-weight: bold;
 }
+
+.winner-prize {
+    font-size: 1.8em;
+    color: var(--color-accent);
+    font-weight: bold;
+    margin-top: 15px;
+}
+
+/* ================================================== */
+/* ===== Authentication Screen ===== */
+/* ================================================== */
+
+.auth-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.auth-modal {
+    background-color: var(--color-block-dark);
+    padding: 30px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 350px;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.close-auth-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.close-auth-btn:hover {
+    color: #fff;
+}
+
+.auth-form h2 {
+    text-align: center;
+    color: var(--color-accent);
+    margin-bottom: 25px;
+}
+
+.auth-input {
+    width: 100%;
+    padding: 12px 15px;
+    margin-bottom: 15px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background-color: #1a1a2e;
+    color: #fff;
+    font-size: 16px;
+}
+
+.auth-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+.auth-input::placeholder {
+    color: #888;
+}
+
+.auth-btn {
+    width: 100%;
+    padding: 14px;
+    background-color: var(--color-accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.auth-btn:hover {
+    background-color: #e6ac00;
+}
+
+.auth-switch {
+    text-align: center;
+    margin-top: 20px;
+    color: #aaa;
+    font-size: 14px;
+}
+
+.auth-switch a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.auth-switch a:hover {
+    text-decoration: underline;
+}
+
+/* ================================================== */
+/* ===== Toast Messages ===== */
+/* ================================================== */
+
+.toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 15px 25px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    z-index: 3000;
+    display: none;
+    animation: toastSlide 0.3s ease;
+}
+
+@keyframes toastSlide {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.error-toast {
+    background-color: #e74c3c;
+    color: #fff;
+}
+
+.success-toast {
+    background-color: #27ae60;
+    color: #fff;
+}

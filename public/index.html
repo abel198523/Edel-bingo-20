@@ -27,6 +27,29 @@
             </div>
         </div>
 
+        <div id="auth-screen" class="auth-screen" style="display: none;">
+            <div class="auth-modal">
+                <button id="close-auth" class="close-auth-btn">&times;</button>
+                
+                <div id="login-form" class="auth-form">
+                    <h2>Login</h2>
+                    <input type="text" id="login-username" placeholder="Username" class="auth-input">
+                    <input type="password" id="login-password" placeholder="Password" class="auth-input">
+                    <button id="login-btn" class="auth-btn">Login</button>
+                    <p class="auth-switch">Don't have an account? <a href="#" id="show-register">Register</a></p>
+                </div>
+                
+                <div id="register-form" class="auth-form" style="display: none;">
+                    <h2>Register</h2>
+                    <input type="text" id="register-username" placeholder="Username" class="auth-input">
+                    <input type="password" id="register-password" placeholder="Password" class="auth-input">
+                    <input type="password" id="register-confirm-password" placeholder="Confirm Password" class="auth-input">
+                    <button id="register-btn" class="auth-btn">Register</button>
+                    <p class="auth-switch">Already have an account? <a href="#" id="show-login">Login</a></p>
+                </div>
+            </div>
+        </div>
+
         <div id="selection-screen" style="display: none;">
             
             <div class="selection-header">
@@ -65,11 +88,11 @@
         <div id="game-screen" style="display: none;">
             
             <div class="game-header">
-                <span class="close-btn">×</span>
+                <span class="close-btn">&times;</span>
                 <span class="game-title">Chewatabingo</span>
                 <span class="header-icons">
-                    <span class="dropdown-icon">⌄</span>
-                    <span class="menu-icon">⋮</span>
+                    <span class="dropdown-icon">&#8964;</span>
+                    <span class="menu-icon">&#8942;</span>
                 </span>
             </div>
 
@@ -139,10 +162,10 @@
 
             <div class="game-footer">
                 <button class="footer-action-btn exit-btn" id="exit-btn">
-                    <span class="btn-icon">↪</span> Exit
+                    <span class="btn-icon">&#8618;</span> Exit
                 </button>
                 <button class="footer-action-btn refresh-btn" id="refresh-btn">
-                    <span class="btn-icon">↻</span> Refresh
+                    <span class="btn-icon">&#8635;</span> Refresh
                 </button>
             </div>
             
