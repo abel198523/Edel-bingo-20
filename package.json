@@ -1,17 +1,20 @@
 {
-  "name": "workspace",
+  "name": "chewatabingo",
   "version": "1.0.0",
-  "main": "cards.js",
+  "description": "Real-time multiplayer Bingo game with WebSocket support",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
-  "keywords": [],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["bingo", "game", "websocket", "telegram"],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "express": "^5.2.1",
-    "serve": "^14.2.5",
     "ws": "^8.18.3"
   }
 }

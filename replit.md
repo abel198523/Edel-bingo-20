@@ -5,9 +5,9 @@ A real-time multiplayer Bingo game built with Node.js, Express, and WebSockets. 
 
 ## Project Architecture
 - **Backend**: Node.js + Express server with WebSocket support for real-time communication
-- **Frontend**: Vanilla JavaScript with HTML/CSS
+- **Frontend**: Vanilla JavaScript with HTML/CSS (in `public/` folder)
 - **Real-time**: WebSocket-based game state synchronization
-- **Port Configuration**: Frontend runs on port 5000 (0.0.0.0)
+- **Deployment**: Configured for Render.com deployment
 
 ## Tech Stack
 - Node.js with Express v5.2.1
@@ -16,11 +16,16 @@ A real-time multiplayer Bingo game built with Node.js, Express, and WebSockets. 
 - Telegram Web App API integration
 
 ## File Structure
-- `server.js` - Express server with WebSocket game logic
-- `Index.html` - Main HTML file
-- `game.js` - Client-side game logic and UI handlers
-- `card.js` - Bingo card data (99 pre-generated cards)
-- `style.css` - Styling
+```
+├── server.js           # Express server with WebSocket game logic
+├── package.json        # Dependencies and scripts
+├── render.yaml         # Render deployment configuration
+└── public/
+    ├── index.html      # Main HTML file
+    ├── game.js         # Client-side game logic and UI handlers
+    ├── card.js         # Bingo card data (99 pre-generated cards)
+    └── style.css       # Styling
+```
 
 ## Game Flow
 1. **Landing Screen**: Players select stake amount and start game
@@ -29,14 +34,23 @@ A real-time multiplayer Bingo game built with Node.js, Express, and WebSockets. 
 4. **Winner Phase**: First player to complete a valid bingo pattern wins (5s display)
 5. Loop back to selection phase
 
-## Recent Changes
-- Fixed HTML reference from `cards.js` to `card.js`
-- Added .gitignore for Node.js project
-- Configured for Replit environment (port 5000, cache control enabled)
+## Render Deployment
+1. Connect your GitHub repository to Render
+2. Select "Web Service"
+3. Render will auto-detect settings from `render.yaml`
+4. Deploy!
 
-## Development Setup
-The server is pre-configured to:
-- Listen on 0.0.0.0:5000
-- Serve static files from root directory
-- Disable caching with Cache-Control headers
-- Handle WebSocket connections for real-time gameplay
+Or manually configure:
+- **Build Command**: `npm install`
+- **Start Command**: `npm start`
+- **Environment**: Node
+
+## Environment Variables
+- `PORT` - Set automatically by Render (default: 10000 for local development)
+- `NODE_ENV` - Set to "production" on Render
+
+## Recent Changes
+- Configured project for Render.com deployment
+- Moved static files to `public/` folder
+- Added `render.yaml` for easy deployment
+- Updated PORT to use environment variable

@@ -274,16 +274,16 @@ wss.on('connection', (ws) => {
     });
 });
 
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
     next();
 });
 
-const PORT = 5000;
+const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
     console.log('WebSocket server ready');
     
     initializeMasterNumbers();
